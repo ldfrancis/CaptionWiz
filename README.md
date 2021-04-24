@@ -1,1 +1,1 @@
-# VizWizCaptions2021
+# CaptionWiz

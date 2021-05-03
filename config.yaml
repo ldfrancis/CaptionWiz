@@ -1,0 +1,33 @@
+name: caption
+train: True
+evaluate: False
+test: False
+
+# dataset
+dataset: mscoco # mscoco, mscoco-karpathy, vizwiz
+
+# model
+extractor: inceptionv3
+caption_model: show_att_tell #
+embedding_dim:
+units:
+top_k_words: null
+tokenizer:
+max_length:
+
+# trainer
+batch_size: 16
+epochs: 30
+lr: 0.0001
+max_to_keep: 5
+log_graphs: True
+trainer_loglevel: debug
+optimizer: adam
+lr_decay: 0.99
+lr_patience: 3
+
+# wandb
+wandb:
+  use: False
+  project: vizwiz
+  entity: captionwiz

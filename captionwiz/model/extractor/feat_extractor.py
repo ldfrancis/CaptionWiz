@@ -1,8 +1,9 @@
 from pathlib import Path
-from typing import Tuple
+from typing import Dict, Tuple
 
 import numpy as np
 import tensorflow as tf
+from tqdm import tqdm
 
 from captionwiz.dataset.caption_ds import CaptionDS
 from captionwiz.model.extractor.base_extractor import get_inceptionV3
@@ -13,6 +14,7 @@ from captionwiz.utils.constants import (
     MSCOCO_FEATURES_DIR,
 )
 from captionwiz.utils.data_utils import dataloader_from_img_paths
+from captionwiz.utils.log_utils import logger
 from captionwiz.utils.type import FilePath, Tensor
 
 
@@ -40,12 +42,38 @@ class FeatureExtractor:
         self._batch_size = batch_size
 
         if self._dataset:
-            self._image_paths = list(self._dataset.im_to_captions.keys())
-            self._image_paths = sorted(set(self._image_paths))
-            self.im_to_features = {im: None for im in self._image_paths}
-            self.run_on_images(batch_size)
+            logger.info(f"dataset {self._dataset.name} attached to feature extractor")
+            self.im_to_features: Dict[str, str] = {}
+            # self._image_paths = list(self._dataset.im_to_captions.keys())
+            # self._image_paths = sorted(set(self._image_paths))
 
-    def run_on_images(self, batch_size: int = 16):
+            # extract train features
+            logger.info(
+                f"extracting features for images in train split of {self._dataset.name}"
+            )
+            img_paths = list(self._dataset.train_img_paths)
+            img_paths = sorted(set(img_paths))
+            self.run_on_images(img_paths, batch_size)
+
+            # extract val features
+            logger.info(
+                f"extracting features for images in val split of  {self._dataset.name}"
+            )
+            img_paths = list(self._dataset.val_img_paths)
+            img_paths = sorted(set(img_paths))
+            self.run_on_images(img_paths, batch_size)
+
+            # extract train features
+            logger.info(
+                f"extracting features for images in test split of  {self._dataset.name}"
+            )
+            img_paths = list(self._dataset.test_img_paths)
+            img_paths = sorted(set(img_paths))
+            self.run_on_images(img_paths, batch_size)
+
+        logger.info(f"Created Feature extractor {self._extractor_name}")
+
+    def run_on_images(self, img_paths, batch_size: int = 16):
         """Runs the extractor on all images in the dataset (if available) and stores results
         in a mapping, image_features
         """
@@ -54,26 +82,38 @@ class FeatureExtractor:
         ), "No dataset is give, cannot run extractor on images"
 
         imageloader = IMAGE_LOADERS[self._extractor_name]
-        ds = dataloader_from_img_paths(self._image_paths, imageloader, batch_size)
+        ds = dataloader_from_img_paths(img_paths, imageloader, batch_size)
 
         self._features_dir = _captionds_features_dir[self._dataset.name]
+        self._features_dir.mkdir(parents=True, exist_ok=True)
 
-        for im, im_pth in ds:
-            for m, p in zip(im, im_pth):
-                features = self.extraction_model(m)
-                filepath = p.numpy().decode("utf-8")
-                filename = Path(filepath).name
-                features_filepath = (
-                    _captionds_features_dir[self._dataset.name] / filename
-                )
-                self.im_to_features[filepath] = features_filepath
+        def _obtain_feats_pth(p):
+            # filepath = p.numpy().decode("utf-8")
+            filepath = p
+            filename = Path(filepath).name
+            features_filepath = self._features_dir / f"{filename}.npz"
+
+            self.im_to_features[filepath] = str(features_filepath.absolute())
+
+            return features_filepath
+
+        [_obtain_feats_pth(p) for p in img_paths]
+
+        for im, im_pth in tqdm(ds):
+            feat_pths = [_obtain_feats_pth(p) for p in im_pth]
+
+            if all([fp.exists() for fp in feat_pths]):
+                continue
+
+            features = self.extraction_model(im)
+            features = [f for f in zip(*features)]
+
+            for feats, fp in zip(features, feat_pths):
                 to_save = {
                     fn: f.numpy()
-                    for f, fn in zip(
-                        features, _extractors_features[self._extractor_name]
-                    )
+                    for f, fn in zip(feats, _extractors_features[self._extractor_name])
                 }
-                np.savez_compressed(filepath, **to_save)
+                np.savez_compressed(fp, **to_save)
 
     def extract_from_file(self, im_path: FilePath) -> Tuple[Tensor, ...]:
         """Extract the features for an image with the given path
@@ -92,8 +132,7 @@ class FeatureExtractor:
             return batched_img
 
         if self._dataset:
-            feature_filepath = self.im_to_features[im_path]
-            features_cmprsd = np.load(feature_filepath)
+            features_cmprsd = np.load(im_path)
             features = tuple(
                 [features_cmprsd[k] for k in _extractors_features[self._extractor_name]]
             )
@@ -120,17 +159,17 @@ class FeatureExtractor:
         assert split in ["train", "test", "val"]
 
         if split == "train":
-            im_paths = self._dataset.train_im_paths
-            captions = self._dataset.train_captions
+            im_paths = [self.im_to_features[f] for f in self._dataset.train_img_paths]
+            captions = self._dataset.train_caption_tensor
         elif split == "test":
-            im_paths = self._dataset.test_im_paths
-            captions = self._dataset.test_captions
+            im_paths = [self.im_to_features[f] for f in self._dataset.test_img_paths]
+            captions = self._dataset.test_caption_tensor
         else:
-            im_paths = self._dataset.val_im_paths
-            captions = self._dataset.val_captions
+            im_paths = [self.im_to_features[f] for f in self._dataset.val_img_paths]
+            captions = self._dataset.val_caption_tensor
 
         # handle shuffle
-        shuffle = False if (split == "test") else True
+        shuffle = False if (split == "test") else shuffle
 
         dataset = tf.data.Dataset.from_tensor_slices((im_paths, captions))
 
@@ -143,8 +182,8 @@ class FeatureExtractor:
                 _map_fn,
                 [pth, cap],
                 [tf.float32, tf.int32],
-                num_parallel_calls=tf.data.AUTOTUNE,
-            )
+            ),
+            num_parallel_calls=tf.data.AUTOTUNE,
         )
         dataset = dataset.shuffle(buffer_size) if shuffle else dataset
         dataset = dataset.batch(batch_size)
@@ -158,7 +197,7 @@ _extractors = {
 }
 
 _extractors_features = {
-    INCEPTIONV3: ("feat"),
+    INCEPTIONV3: ("feat",),
 }
 
 _captionds_features_dir = {

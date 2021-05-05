@@ -2,3 +2,4 @@ pyyaml
 tensorflow
 tensorboard
 wandb
+tqdm

@@ -1,0 +1,18 @@
+.vscode
+*.pyc
+*.egg-info/
+*.npz
+*/__pycache__/*
+
+# wandb
+wandb/*
+
+# tensorboard
+events.out.*
+local.trace
+
+
+# pre-commit
+.pre-commit-config.yaml
+
+sort_req.py

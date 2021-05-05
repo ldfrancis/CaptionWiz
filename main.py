@@ -1,8 +1,8 @@
 import click
+import yaml
 
 from captionwiz.dataset import dataset_class
 from captionwiz.model import model_class
-from captionwiz.model.extractor import FeatureExtractor
 from captionwiz.training import Trainer
 from captionwiz.training.loss import caption_xe_loss
 from captionwiz.training.optim import get_optim
@@ -148,6 +148,14 @@ cfg = load_yaml(BASE_DIR / "config.yaml")
     help="Number of top words to use for vocab_size.",
 )
 @click.option(
+    "--max_length",
+    "-ml",
+    default=cfg["max_length"],
+    show_default=True,
+    type=int,
+    help="Maximum sequence length.",
+)
+@click.option(
     "--lr_decay",
     "-ld",
     default=cfg["lr_decay"],
@@ -164,12 +172,19 @@ cfg = load_yaml(BASE_DIR / "config.yaml")
     help="Steps to wait for before decaying lr.",
 )
 @click.option(
-    "--optim",
+    "--optimizer",
     "-o",
-    default=cfg["optim"],
+    default=cfg["optimizer"],
     show_default=True,
     type=click.Choice(["adam"]),
     help="Optimizer to use.",
+)
+@click.option(
+    "--shuffle",
+    "-sh",
+    show_default=True,
+    is_flag=True,
+    help="Whether to shuffle data when creating dataloaders.",
 )
 def main(
     name,
@@ -191,15 +206,18 @@ def main(
     max_length,
     lr_decay,
     lr_patience,
-    optim,
+    optimizer,
+    shuffle,
 ):
     logger.info("Setting config")
+
     # override config with command line arguments/flags
     # boolean flags
     cfg["log_graphs"] = log_graphs or cfg["log_graphs"]
     cfg["train"] = train if train else cfg["train"]
     cfg["test"] = test if test else cfg["test"]
     cfg["evaluate"] = evaluate if evaluate else cfg["evaluate"]
+    cfg["shuffle"] = shuffle if shuffle else cfg["shuffle"]
     # other settings
     cfg["name"] = name
     cfg["dataset"] = dataset
@@ -218,7 +236,9 @@ def main(
     cfg["lr_patience"] = lr_patience
     cfg["max_length"] = max_length
 
-    logger.info(f"Done setting config\n\tConfig: {cfg}")
+    pretty_cfg = yaml.dump(cfg, sort_keys=False, default_flow_style=False)
+
+    logger.info(f"Done setting config\n\nConfig: \n{pretty_cfg}")
 
     setup_wandb(cfg)
 
@@ -230,34 +250,31 @@ def main(
         "units": units,
         "vocab_size": top_k_words or _dataset.vocab_size,
         "tokenizer": _dataset.tokenizer,
-        "max_length": max_length,
+        "max_length": max_length or _dataset.max_length,
         "name": caption_model,
     }
     _caption_model = model_class[caption_model](**caption_model_cfg)
-    _feature_extractor = FeatureExtractor(extractor, _dataset, batch_size)
-    _learning_rate = (
-        CaptionLrSchedule(_caption_model, lr_decay, learning_rate, lr_patience),
+    _learning_rate = CaptionLrSchedule(
+        _caption_model, lr_decay, learning_rate, lr_patience
     )
-    _optimizer = get_optim(optim, _learning_rate)
+    _optimizer = get_optim(optimizer, _learning_rate)
 
-    trainer = Trainer(
-        _caption_model, _dataset, _feature_extractor, _optimizer, caption_xe_loss, cfg
-    )
+    trainer = Trainer(_caption_model, _dataset, _optimizer, caption_xe_loss, cfg)
 
     # train:
     if cfg["train"]:
-        """[summary]"""
+        """Train the caption model"""
         logger.info("Train")
         trainer.train(epochs)
 
-    # eval:
-    if cfg["eval"]:
-        """[summary]"""
+    # evaluate:
+    if cfg["evaluate"]:
+        """Perform evaluation on the val split using the caption model"""
         logger.info("Eval")
         trainer.eval(True)
 
     # test
     if cfg["test"]:
-        """[summary]"""
+        """Inference on the test split using the caption model"""
         logger.info("Test")
         trainer.test()

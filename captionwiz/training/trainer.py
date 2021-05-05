@@ -1,9 +1,11 @@
 import logging
 from time import time
+from typing import Dict
 
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.optimizers import Optimizer
+from tqdm import tqdm
 
 from captionwiz.dataset import CaptionDS
 from captionwiz.model import CaptionModel
@@ -14,11 +16,9 @@ from captionwiz.utils.log_utils import (
     formatter,
     logger,
     logging_levels,
-    streamhandler,
-    test_summary_writer,
-    train_summary_writer,
+    streamhandlerStdOut,
 )
-from captionwiz.utils.type import Dict, ImageFeature, Loss, Tensor
+from captionwiz.utils.type import ImageFeatures, Loss, Tensor
 
 
 class Trainer:
@@ -26,7 +26,6 @@ class Trainer:
         self,
         caption_model: CaptionModel,
         dataset: CaptionDS,
-        extractor: FeatureExtractor,
         optimizer: Optimizer,
         loss: Loss,
         cfg: Dict,
@@ -37,16 +36,18 @@ class Trainer:
         self._caption_model.optim_prep(optimizer, loss)
         self._dataset = dataset
         self._optimizer = self._caption_model.optimizer
-        self._loss = self._caption_model.loss_fn
+        self._loss = self._caption_model.loss
         self._cfg = cfg
         self._batch_size = cfg["batch_size"]
         self._buffer_size = cfg["buffer_size"]
         self._shuffle = cfg["shuffle"]
 
-        self.current_epoch = tf.Variable(1)
-        self.current_step = tf.Variable(1)
+        self.current_epoch = tf.Variable(0)
+        self.current_step = tf.Variable(0)
 
         self.name = name or f"{caption_model.name}_{dataset.name}"
+
+        self.best_loss = tf.Variable(np.inf, dtype=tf.float32)
 
         self.create_checkpoint()
         self.create_logger()
@@ -56,22 +57,27 @@ class Trainer:
             extractor_name, self._dataset, self._batch_size
         )
 
-        self.best_loss = tf.Variable(np.inf, dtype=tf.float32)
-
         self._train_dataloader = self._extractor.create_image_caption_dataloader(
-            self,
             buffer_size=self._buffer_size,
             batch_size=self._batch_size,
             shuffle=self._shuffle,
             split="train",
         )
         self._eval_dataloader = self._extractor.create_image_caption_dataloader(
-            self,
             buffer_size=self._buffer_size,
             batch_size=self._batch_size,
             shuffle=self._shuffle,
             split="val",
         )
+        self._test_dataloader = self._extractor.create_image_caption_dataloader(
+            buffer_size=self._buffer_size,
+            batch_size=self._batch_size,
+            shuffle=False,
+            split="test",
+        )
+
+        self.test_summary_writer = self._cfg["test_summary_writer"]
+        self.train_summary_writer = self._cfg["train_summary_writer"]
 
         logger.info(
             f"Trainer, {self.name}, created:-\n"
@@ -85,7 +91,6 @@ class Trainer:
         self.ckpt = tf.train.Checkpoint(
             caption_model=self._caption_model,
             optimizer=self._optimizer,
-            epoch=self.current_epoch,
             step=self.current_step,
             best_loss=self.best_loss,
         )
@@ -105,7 +110,7 @@ class Trainer:
         self.logger = logging.getLogger(self.name)
         self.logger.setLevel(logging_levels[log_level])
         self.logger.addHandler(filehandler)
-        self.logger.addHandler(streamhandler)
+        self.logger.addHandler(streamhandlerStdOut)
 
         self.logger.info(f"Created logger for trainer {self.name}")
 
@@ -137,19 +142,24 @@ class Trainer:
                 f"\tval_loss_min: {eval_losses['eval_loss_min']}"
             )
 
-            with test_summary_writer.as_default():
+            with self.test_summary_writer.as_default():
                 for k, v in eval_losses.items():
-                    tf.summary.scalar(k, v, step=epoch)
+                    tf.summary.scalar(k, v, step=self.current_step.numpy())
+                tf.summary.scalar(
+                    "val_loss",
+                    eval_losses["eval_loss_mean"],
+                    step=self.current_step.numpy(),
+                )
 
         return eval_losses, eval_time
 
     def eval_step(
-        self, img_features: ImageFeature, target: Tensor, batchi: int, epoch: int
+        self, img_features: ImageFeatures, target: Tensor, batchi: int, epoch: int
     ):
         if batchi == 0 and self._cfg["log_graphs"]:
             tf.summary.trace_on(graph=True, profiler=True)
             batch_loss, _ = self._caption_model.eval_step(img_features, target)
-            with train_summary_writer.as_default():
+            with self.test_summary_writer.as_default():
                 tf.summary.trace_export(name="eval_step_trace", step=epoch)
         else:
             batch_loss, _ = self._caption_model.eval_step(img_features, target)
@@ -157,13 +167,15 @@ class Trainer:
         return batch_loss
 
     def train_step(
-        self, img_features: ImageFeature, target: Tensor, batchi: int, epoch: int
+        self, img_features: ImageFeatures, target: Tensor, batchi: int, epoch: int
     ):
         if batchi == 0 and self._cfg["log_graphs"]:
             tf.summary.trace_on(graph=True, profiler=True)
             batch_loss, _ = self._caption_model.train_step(img_features, target)
-            with train_summary_writer.as_default():
-                tf.summary.trace_export(name="train_step_trace", step=epoch)
+            with self.train_summary_writer.as_default():
+                tf.summary.trace_export(
+                    name="train_step_trace", step=self.current_step.numpy()
+                )
         else:
             batch_loss, _ = self._caption_model.train_step(img_features, target)
 
@@ -172,35 +184,42 @@ class Trainer:
     def train_one_epoch(self, epoch):
         start_time = time()
         epoch_losses = []
-        self.current_epoch.assign(epoch)
         for batch, (img_features, target) in enumerate(self._train_dataloader):
             # trace the train_step func
             batch_loss = self.train_step(img_features, target, batch, epoch)
             epoch_losses += [batch_loss.numpy()]
             self.current_step.assign_add(1)
+            with self.train_summary_writer.as_default():
+                tf.summary.scalar(
+                    "train_loss", batch_loss, step=self.current_step.numpy()
+                )
 
         train_losses = self.summarise_metric("train_loss", epoch_losses)
         epoch_train_time = time() - start_time
+
+        self.current_epoch.assign_add(1)
 
         return train_losses, epoch_train_time
 
     def train(self, epochs=10):
         """ """
         if self.ckpt_manager.latest_checkpoint:
-            self.current_epoch = int(self.ckpt_manager.latest_checkpoint.split("-")[-1])
             self.ckpt.restore(self.ckpt_manager.latest_checkpoint)
+
             self.logger.info(
                 f"Restored checkpoint from {self.checkpoint_path}"
-                f"/{self.ckpt_manager.latest_checkpoint(self.checkpoint_path)}"
-                f" at epoch {self.current_epoch} and step {self.current_step.numpy()}"
+                f"/{self.ckpt_manager.latest_checkpoint}"
+                f" at epoch {self.current_epoch.numpy()} and step "
+                f"{self.current_step.numpy()}"
             )
 
         self.logger.info("Commenced training")
         for epoch in range(self.current_epoch.numpy(), epochs + 1):
+            self.logger.info()
             train_losses, epoch_train_time = self.train_one_epoch(epoch)
             eval_losses, eval_time = self.eval(epoch)
             self.logger.info(
-                f"Epoch {self.current_epoch.numpy()}:- \n"
+                f"Epoch {epoch}:- \n"
                 f"\tepoch train time: {epoch_train_time}\n"
                 f"\ttrain_loss_mean: {train_losses['train_loss_mean']}\n"
                 f"\ttrain_loss_max: {train_losses['train_loss_max']}\n"
@@ -219,36 +238,35 @@ class Trainer:
                     f"{eval_losses['eval_loss_mean']:1.2f} at {save_path}"
                 )
 
-            with train_summary_writer.as_default():
+            with self.train_summary_writer.as_default():
                 for k, v in train_losses.items():
-                    tf.summary.scalar(k, v, step=epoch)
+                    tf.summary.scalar(k, v, step=self.current_step.numpy())
 
-            with test_summary_writer.as_default():
+            with self.test_summary_writer.as_default():
                 for k, v in eval_losses.items():
-                    tf.summary.scalar(k, v, step=epoch)
+                    tf.summary.scalar(k, v, step=self.current_step.numpy())
 
             self.ckpt.step.assign_add(1)
 
     def test(self):
-        if self.ckpt_manager.latest_checkpoint:
-            self.current_epoch = int(self.ckpt_manager.latest_checkpoint.split("-")[-1])
+        if self.ckpt_manager.latest_checkpoint and not self._cfg["train"]:
             self.ckpt.restore(self.ckpt_manager.latest_checkpoint)
             self.logger.info(
                 f"Restored checkpoint from {self.checkpoint_path}"
-                f"/{self.ckpt_manager.latest_checkpoint(self.checkpoint_path)}"
-                f" at epoch {self.current_epoch} and step {self.current_step.numpy()}"
+                f"/{self.ckpt_manager.latest_checkpoint}"
+                f" at epoch {self.current_epoch.numpy()} and step "
+                f"{self.current_step.numpy()}"
             )
 
         imgs = []
         captions = []
 
-        for _, (img_features, _) in enumerate(self._test_dataloader):
-            # trace the eval_step func
-            captions = self._caption_model.infer(img_features)
-            captions += [captions]
-            imgs += [img_features]
+        for (img_features, _) in tqdm(self._test_dataloader):
+            captions_ = self._caption_model.infer(img_features)
+            captions += [captions_.numpy()]
+            imgs += [img_features.numpy()]
 
-        imgs = tf.concat(imgs, axis=0)
-        captions = tf.concat(captions, axis=0)
-
-        return imgs, captions
+        imgs = np.concatenate(imgs, axis=0)
+        captions = np.concatenate(captions, axis=0)
+        texts = self._dataset.tokenizer.sequences_to_texts(captions)
+        return captions, texts

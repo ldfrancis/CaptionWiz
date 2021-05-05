@@ -1,6 +1,7 @@
 from abc import abstractmethod
 from typing import Dict, Union
 
+import tensorflow as tf
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Optimizer
 from tensorflow.keras.optimizers import get as get_optim
@@ -18,11 +19,17 @@ class CaptionModel(Model):
         vocab_size,
         tokenizer,
         max_length,
-        name="ShowAttTell",
+        name,
     ):
         super(CaptionModel, self).__init__(name=name)
         self.tokenizer = tokenizer
-        self.name = name
+        self._embedding_dim = embedding_dim
+        self._units = units
+        self.vocab_size = vocab_size
+        self._max_length = max_length
+        self.train_loss = tf.Variable(
+            0, name="eval_loss", trainable=False, dtype=tf.float32
+        )  # to be used by scheduler
 
     def optim_prep(self, optimizer: Union[str, Optimizer], loss: Loss):
         if isinstance(optimizer, str):

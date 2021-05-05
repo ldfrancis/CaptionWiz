@@ -1,5 +1,5 @@
 name: caption
-train: False
+train: Train
 evaluate: False
 test: True
 
@@ -29,6 +29,6 @@ shuffle: True
 
 # wandb
 wandb:
-  use: False
+  use: True
   project: vizwiz
   entity: captionwiz

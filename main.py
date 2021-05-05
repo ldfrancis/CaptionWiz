@@ -1,4 +1,5 @@
 import click
+import tensorflow as tf
 import yaml
 
 from captionwiz.dataset import dataset_class
@@ -9,7 +10,7 @@ from captionwiz.training.optim import get_optim
 from captionwiz.training.schedule import CaptionLrSchedule
 from captionwiz.utils.config_utils import load_yaml, setup_wandb
 from captionwiz.utils.constants import BASE_DIR
-from captionwiz.utils.log_utils import logger
+from captionwiz.utils.log_utils import logger, test_log_dir, train_log_dir
 
 cfg = load_yaml(BASE_DIR / "config.yaml")
 
@@ -241,6 +242,10 @@ def main(
     logger.info(f"Done setting config\n\nConfig: \n{pretty_cfg}")
 
     setup_wandb(cfg)
+    train_summary_writer = tf.summary.create_file_writer(str(train_log_dir.absolute()))
+    test_summary_writer = tf.summary.create_file_writer(str(test_log_dir.absolute()))
+    cfg["train_summary_writer"] = train_summary_writer
+    cfg["test_summary_writer"] = test_summary_writer
 
     # get model, dataset, and trainer ready
     logger.info("Creating model, dataset, and trainer")
@@ -251,7 +256,6 @@ def main(
         "vocab_size": top_k_words or _dataset.vocab_size,
         "tokenizer": _dataset.tokenizer,
         "max_length": max_length or _dataset.max_length,
-        "name": caption_model,
     }
     _caption_model = model_class[caption_model](**caption_model_cfg)
     _learning_rate = CaptionLrSchedule(

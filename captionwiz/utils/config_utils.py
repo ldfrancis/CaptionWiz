@@ -2,9 +2,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict
 
-import wandb
 import yaml
 
+import wandb
 from captionwiz.utils.type import Dir, FilePath
 
 
@@ -26,6 +26,8 @@ def get_datetime(format="%Y%m%d%H%M%S") -> str:
 
 
 def setup_wandb(cfg):
-    if cfg["use_wandb"]:
+    if cfg["wandb"]["use"]:
         project = cfg["wandb"]["project"]
-        wandb.init(project=project, sync_tensorboard=True, config=cfg)
+        entity = cfg["wandb"]["entity"]
+        wandb.init(project=project, entity=entity, sync_tensorboard=True, config=cfg)
+        wandb.run.name = f"{cfg['name']}_{cfg['caption_model']}_{cfg['dataset']}"

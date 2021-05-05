@@ -2,11 +2,14 @@ import os
 from functools import partial
 from pathlib import Path
 
-from .config_utils import get_captionwiz_dir
+from .config_utils import get_captionwiz_dir, get_datetime
 from .img_utils import load_image
 from .type import Dir, FilePath
 
 BASE_DIR: FilePath = Path(os.getcwd())
+
+# TIME
+DTIME = get_datetime()
 
 # DATASET ##
 
@@ -50,14 +53,14 @@ IMAGE_LOADERS = {INCEPTIONV3: partial(load_image, im_size=INCEPTIONV3_IMSIZE)}
 ADAM = "adam"
 
 # mscoco
-MSCOCO_FEATURES_DIR = MSCOCO_DATA_DIR / "mscoco/features"
+MSCOCO_FEATURES_DIR = MSCOCO_DATA_DIR / "features"
 
 # TRAINER ##
 CHECKPOINT_DIR = get_captionwiz_dir() / "checkpoints"
 
 # LOGGING ##
 LOG_DIR = get_captionwiz_dir() / "logs"
-LOG_FILE = LOG_DIR / "caption_logs.txt"
+LOG_FILE = LOG_DIR / f"{DTIME}_caption_program.log"
 
 # Tensorboard
 TENSORBOARD_LOG_DIR: str = LOG_DIR / "tensorboard"

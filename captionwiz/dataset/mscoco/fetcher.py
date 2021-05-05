@@ -5,15 +5,14 @@ from typing import Any, Dict
 from tensorflow.keras.utils import get_file
 
 from captionwiz.utils.constants import (
+    MSCOCO_ANNOTATIONS_URL,
     MSCOCO_DATA_DIR,
     MSCOCO_TEST_IMAGES_DIR,
     MSCOCO_TEST_IMAGES_URL,
     MSCOCO_TRAIN_ANNOTATIONS_FILE,
-    MSCOCO_TRAIN_ANNOTATIONS_URL,
     MSCOCO_TRAIN_IMAGES_DIR,
     MSCOCO_TRAIN_IMAGES_URL,
     MSCOCO_VAL_ANNOTATIONS_FILE,
-    MSCOCO_VAL_ANNOTATIONS_URL,
     MSCOCO_VAL_IMAGES_DIR,
     MSCOCO_VAL_IMAGES_URL,
 )
@@ -37,15 +36,14 @@ def obtain_annotations(split="train") -> Dict[str, Any]:
     return annotations
 
 
-def download_annotations_file(split="train") -> None:
+def download_annotations_file() -> None:
     """Downloads the mscoco annotations file, train n val splits"""
-    assert split in ["train", "val"], "split can either be train or val"
-    url = {
-        "train": MSCOCO_TRAIN_ANNOTATIONS_URL,
-        "val": MSCOCO_VAL_ANNOTATIONS_URL,
-    }[split]
+
     annotations_zip_file = get_file(
-        "annotations.zip", cache_subdir=MSCOCO_DATA_DIR, origin=url, extract=True
+        "annotations.zip",
+        cache_subdir=MSCOCO_DATA_DIR,
+        origin=MSCOCO_ANNOTATIONS_URL,
+        extract=True,
     )
     os.remove(annotations_zip_file)
 
@@ -74,5 +72,5 @@ def obtain_images(split="train") -> Dir:
     }[split]
     if not directory.exists():
         download_images(split)
-    assert directory.exists(), "No directory for images"
+    assert directory.exists(), f"No directory for images. {directory} does not exist"
     return directory

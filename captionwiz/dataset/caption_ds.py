@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Tuple
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 from tensorflow.keras.preprocessing.text import Tokenizer
 
+from captionwiz.utils.log_utils import logger
 from captionwiz.utils.type import FilePath
 
 
@@ -24,17 +25,23 @@ class CaptionDS:
         and image_caption_pairs
         """
         self.name = name
-        self.im_to_caption: Dict[Any, List[str]] = collections.defaultdict(list)
-        self.image_caption_pairs: List[Tuple[FilePath, str]] = []
+        self.train_im_to_caption: Dict[Any, List[str]] = collections.defaultdict(list)
+        self.val_im_to_caption: Dict[Any, List[str]] = collections.defaultdict(list)
+        self.train_image_caption_pairs: List[Tuple[FilePath, str]] = []
+        self.val_image_caption_pairs: List[Tuple[FilePath, str]] = []
         self.create_image_caption_pairs()
         self.preprocess()
         self.vocab_size = len(self.tokenizer.word_index) + 1
+
+        logger.info("Done creating dataset")
 
     @abstractmethod
     def create_image_caption_pairs(self):
         """Method must set the im_to_caption and image_caption_pairs attributes"""
 
     def preprocess(self):
+
+        logger.info("Started preprocessing dataset")
 
         # fit tokenizer to train split
         captions = [cap for _, cap in self.train_image_caption_pairs]
@@ -53,6 +60,10 @@ class CaptionDS:
             (im, cap)
             for im, cap in zip(self.train_img_paths, self.train_caption_tensor)
         ]
+        logger.info(
+            "Fitted tokenizer to train split and created train preprocessed "
+            "image-caption pairs"
+        )
 
         # use tokenizer on val split
         captions = [cap for _, cap in self.val_image_caption_pairs]
@@ -64,6 +75,7 @@ class CaptionDS:
         self.val_image_caption_pairs = [
             (im, cap) for im, cap in zip(self.val_img_paths, self.val_caption_tensor)
         ]
+        logger.info("Created val preprocessed image-caption pairs")
 
         # use also on test split
         dummy_cap = captions[0]
@@ -76,3 +88,4 @@ class CaptionDS:
         self.test_image_caption_pairs = [
             (im, cap) for im, cap in zip(self.test_img_paths, self.test_caption_tensor)
         ]
+        logger.info("Created test preprocessed image-caption pairs with dummy captions")

@@ -88,8 +88,7 @@ class FeatureExtractor:
         self._features_dir.mkdir(parents=True, exist_ok=True)
 
         def _obtain_feats_pth(p):
-            # filepath = p.numpy().decode("utf-8")
-            filepath = p
+            filepath = p  # p.numpy().decode("utf-8")
             filename = Path(filepath).name
             features_filepath = self._features_dir / f"{filename}.npz"
 
@@ -98,6 +97,7 @@ class FeatureExtractor:
             return features_filepath
 
         [_obtain_feats_pth(p) for p in img_paths]
+        return
 
         for im, im_pth in tqdm(ds):
             feat_pths = [_obtain_feats_pth(p) for p in im_pth]

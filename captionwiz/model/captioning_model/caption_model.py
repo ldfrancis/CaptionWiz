@@ -27,7 +27,7 @@ class CaptionModel(Model):
         self._units = units
         self.vocab_size = vocab_size
         self._max_length = max_length
-        self.train_loss = tf.Variable(
+        self.eval_loss = tf.Variable(
             0, name="eval_loss", trainable=False, dtype=tf.float32
         )  # to be used by scheduler
 

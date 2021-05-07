@@ -100,21 +100,35 @@ cfg = load_yaml(BASE_DIR / "config.yaml")
     "-tr",
     show_default=True,
     is_flag=True,
-    help="Decide whether to log graph to tensorboard.",
+    help="Decide whether to train on train split.",
 )
 @click.option(
     "--evaluate",
     "-ev",
     show_default=True,
     is_flag=True,
-    help="Decide whether to log graph to tensorboard.",
+    help="Decide whether to evaluate with val split.",
 )
 @click.option(
     "--test",
     "-te",
     show_default=True,
     is_flag=True,
-    help="Decide whether to log graph to tensorboard.",
+    help="Decide whether to test model using dataset test split.",
+)
+@click.option(
+    "--analyze_data",
+    "-ad",
+    show_default=True,
+    is_flag=True,
+    help="Decide whether to analyze the train split of the dataset.",
+)
+@click.option(
+    "--restore",
+    "-r",
+    show_default=True,
+    is_flag=True,
+    help="Decide whether to restore model from checkpoint.",
 )
 @click.option(
     "--embedding_dim",
@@ -173,6 +187,14 @@ cfg = load_yaml(BASE_DIR / "config.yaml")
     help="Steps to wait for before decaying lr.",
 )
 @click.option(
+    "--word_count_threshold",
+    "-wct",
+    default=cfg["word_count_threshold"],
+    show_default=True,
+    type=int,
+    help="Threshold used to decide which words to keep in vocab.",
+)
+@click.option(
     "--optimizer",
     "-o",
     default=cfg["optimizer"],
@@ -209,16 +231,23 @@ def main(
     lr_patience,
     optimizer,
     shuffle,
+    analyze_data,
+    word_count_threshold,
+    restore,
 ):
     logger.info("Setting config")
 
     # override config with command line arguments/flags
+
     # boolean flags
-    cfg["log_graphs"] = log_graphs or cfg["log_graphs"]
-    cfg["train"] = train if train else cfg["train"]
-    cfg["test"] = test if test else cfg["test"]
-    cfg["evaluate"] = evaluate if evaluate else cfg["evaluate"]
-    cfg["shuffle"] = shuffle if shuffle else cfg["shuffle"]
+    cfg["log_graphs"] = log_graphs
+    cfg["train"] = train
+    cfg["test"] = test
+    cfg["evaluate"] = evaluate
+    cfg["shuffle"] = shuffle
+    cfg["analyze_data"] = analyze_data
+    cfg["restore"] = restore
+
     # other settings
     cfg["name"] = name
     cfg["dataset"] = dataset
@@ -228,10 +257,14 @@ def main(
     cfg["batch_size"] = batch_size
     cfg["epochs"] = epochs
     cfg["learning_rate"] = learning_rate
+    cfg["word_count_threshold"] = word_count_threshold
+    cfg["top_k_words"] = top_k_words
+
     # model
     cfg["caption_model"] = caption_model
     cfg["embedding_dim"] = embedding_dim
     cfg["units"] = units
+
     # trainer
     cfg["lr_decay"] = lr_decay
     cfg["lr_patience"] = lr_patience
@@ -249,7 +282,7 @@ def main(
 
     # get model, dataset, and trainer ready
     logger.info("Creating model, dataset, and trainer")
-    _dataset = dataset_class[dataset]()
+    _dataset = dataset_class[dataset](cfg)
     caption_model_cfg = {
         "embedding_dim": embedding_dim,
         "units": units,
@@ -257,6 +290,7 @@ def main(
         "tokenizer": _dataset.tokenizer,
         "max_length": max_length or _dataset.max_length,
     }
+
     _caption_model = model_class[caption_model](**caption_model_cfg)
     _learning_rate = CaptionLrSchedule(
         _caption_model, lr_decay, learning_rate, lr_patience
@@ -264,6 +298,12 @@ def main(
     _optimizer = get_optim(optimizer, _learning_rate)
 
     trainer = Trainer(_caption_model, _dataset, _optimizer, caption_xe_loss, cfg)
+
+    # analyze data:
+    if cfg["analyze_data"]:
+        """Analyze the train split"""
+        logger.info(f"Analyzing the train split of dataset {dataset}")
+        _dataset.analyze(word_count_threshold)
 
     # train:
     if cfg["train"]:
@@ -281,4 +321,5 @@ def main(
     if cfg["test"]:
         """Inference on the test split using the caption model"""
         logger.info("Test")
-        trainer.test()
+        captions, texts = trainer.test()
+        print(texts[:20])

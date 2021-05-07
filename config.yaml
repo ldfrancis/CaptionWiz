@@ -1,18 +1,20 @@
 name: caption
-train: Train
+train: False
 evaluate: False
-test: True
+test: False
+analyze_data: True
 
 # dataset
 dataset: mscoco # mscoco, mscoco-karpathy, vizwiz
+word_count_threshold: 5
+max_length: 14
 
 # model
 extractor: inceptionv3
 caption_model: show_att_tell #
 embedding_dim: 256
 units: 512
-top_k_words: null
-max_length: null
+top_k_words: 10000
 
 # trainer
 batch_size: 64
@@ -26,6 +28,7 @@ optimizer: adam
 lr_decay: 0.99
 lr_patience: 3
 shuffle: True
+restore: True
 
 # wandb
 wandb:

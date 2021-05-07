@@ -2,6 +2,7 @@ import collections
 from abc import abstractmethod
 from typing import Any, Dict, List, Tuple
 
+import numpy as np
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 from tensorflow.keras.preprocessing.text import Tokenizer
 
@@ -20,18 +21,19 @@ class CaptionDS:
     + test_images: a list of images (paths)
     """
 
-    def __init__(self, name) -> None:
+    def __init__(self, name, top_k_words=None) -> None:
         """Initialize the attributes and call abstract method that sets im_to_caption
         and image_caption_pairs
         """
         self.name = name
+        self.top_k_words = top_k_words
         self.train_im_to_caption: Dict[Any, List[str]] = collections.defaultdict(list)
         self.val_im_to_caption: Dict[Any, List[str]] = collections.defaultdict(list)
         self.train_image_caption_pairs: List[Tuple[FilePath, str]] = []
         self.val_image_caption_pairs: List[Tuple[FilePath, str]] = []
         self.create_image_caption_pairs()
         self.preprocess()
-        self.vocab_size = len(self.tokenizer.word_index) + 1
+        self.vocab_size = self.tokenizer.num_words
 
         logger.info("Done creating dataset")
 
@@ -47,14 +49,19 @@ class CaptionDS:
         captions = [cap for _, cap in self.train_image_caption_pairs]
         self.train_img_paths = [im for im, _ in self.train_image_caption_pairs]
         tokenizer = Tokenizer(
-            num_words=None, oov_token="<unk>", filters='!"#$%&()*+.,-/:;=?@[]^_`{|}~ '
+            num_words=self.top_k_words,
+            oov_token="<unk>",
+            filters='!"#$%&()*+.,-/:;=?@[]^_`{|}~ ',
         )
         tokenizer.fit_on_texts(captions)
         tokenizer.word_index["<pad>"] = 0
         tokenizer.index_word[0] = "<pad>"
+
         caption_seqs = tokenizer.texts_to_sequences(captions)
         self.train_caption_tensor = pad_sequences(caption_seqs, padding="post")
-        self.max_length = max(len(s) for s in caption_seqs)
+        self.max_length = self.max_length or int(
+            np.mean([len(s) for s in caption_seqs])
+        )
         self.tokenizer = tokenizer
         self.train_image_caption_pairs = [
             (im, cap)

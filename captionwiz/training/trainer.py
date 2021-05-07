@@ -1,6 +1,6 @@
 import logging
 from time import time
-from typing import Dict
+from typing import Dict, List
 
 import numpy as np
 import tensorflow as tf
@@ -22,6 +22,8 @@ from captionwiz.utils.type import ImageFeatures, Loss, Tensor
 
 
 class Trainer:
+    """Trains a caption model given a dataset, and an optimizer and loss"""
+
     def __init__(
         self,
         caption_model: CaptionModel,
@@ -29,9 +31,18 @@ class Trainer:
         optimizer: Optimizer,
         loss: Loss,
         cfg: Dict,
-        name=None,
+        name: str = None,
     ):
-        """ """
+        """Initialize the trainer
+
+        Args:
+            caption_model (CaptionModel): The image captioning model to be trained
+            dataset (CaptionDS): Caption dataset to use for training
+            optimizer (Optimizer): Optimizer to use. usually adam
+            loss (Loss): Loss function. usually cross entropy
+            cfg (Dict): Program
+            name (str, optional): Name of the trainer. Defaults to None.
+        """
         self._caption_model = caption_model
         self._caption_model.optim_prep(optimizer, loss)
         self._dataset = dataset
@@ -86,6 +97,7 @@ class Trainer:
         )
 
     def create_checkpoint(self):
+        """Checkpoint for saving train progress and enabling training resumption"""
         max_to_keep = self._cfg["max_to_keep"]
         self.checkpoint_path = CHECKPOINT_DIR / self.name
         self.ckpt = tf.train.Checkpoint(
@@ -99,6 +111,7 @@ class Trainer:
         )
 
     def create_logger(self):
+        """Create logger for longing train info"""
         dtime = get_datetime()
         self.log_file = LOG_DIR / f"{self.name}_{dtime}.log"
 
@@ -114,7 +127,18 @@ class Trainer:
 
         self.logger.info(f"Created logger for trainer {self.name}")
 
-    def summarise_metric(self, name, values):
+    def summarise_metric(self, name: str, values: List[float]) -> Dict[str, float]:
+        """Summarise a metric by computing its mean, max and min value
+        given a list of such metric
+
+        Args:
+            name (str): Name of metric
+            values (List[str]): List of metric values usually collected
+            for each step over an epoch of training
+
+        Returns:
+            [Dict[str, float]]: summary
+        """
         summarised_metric = {
             f"{name}_mean": np.mean(values),
             f"{name}_max": np.max(values),
@@ -193,6 +217,11 @@ class Trainer:
                 tf.summary.scalar(
                     "train_loss", batch_loss, step=self.current_step.numpy()
                 )
+                tf.summary.scalar(
+                    "learning_rate",
+                    self._optimizer.learning_rate._lr,
+                    step=self.current_step.numpy(),
+                )
 
         train_losses = self.summarise_metric("train_loss", epoch_losses)
         epoch_train_time = time() - start_time
@@ -203,7 +232,7 @@ class Trainer:
 
     def train(self, epochs=10):
         """ """
-        if self.ckpt_manager.latest_checkpoint:
+        if self.ckpt_manager.latest_checkpoint and self._cfg["restore"]:
             self.ckpt.restore(self.ckpt_manager.latest_checkpoint)
 
             self.logger.info(
@@ -215,7 +244,7 @@ class Trainer:
 
         self.logger.info("Commenced training")
         for epoch in range(self.current_epoch.numpy(), epochs + 1):
-            self.logger.info()
+            self.logger.info(f"EPOCH {epoch+1}")
             train_losses, epoch_train_time = self.train_one_epoch(epoch)
             eval_losses, eval_time = self.eval(epoch)
             self.logger.info(

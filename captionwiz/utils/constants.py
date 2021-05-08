@@ -16,24 +16,59 @@ DTIME = get_datetime()
 # MSCOCO
 MSCOCO: str = "mscoco"
 MSCOCO_DATA_DIR: Dir = get_captionwiz_dir() / "mscoco"
-MSCOCO_TRAIN_ANNOTATIONS_FILE: FilePath = (
-    MSCOCO_DATA_DIR / "annotations/captions_train2014.json"
-)
-MSCOCO_VAL_ANNOTATIONS_FILE: FilePath = (
-    MSCOCO_DATA_DIR / "annotations/captions_val2014.json"
-)
+
 MSCOCO_ANNOTATIONS_URL: str = (
     "http://images.cocodataset.org/annotations/annotations_trainval2014.zip"
 )
+
+MSCOCO_TRAIN_ANNOTATIONS_FILE: FilePath = (
+    MSCOCO_DATA_DIR / "annotations/captions_train2014.json"
+)
 MSCOCO_TRAIN_IMAGES_DIR: Dir = MSCOCO_DATA_DIR / "train2014"
 MSCOCO_TRAIN_IMAGES_URL: str = "http://images.cocodataset.org/zips/train2014.zip"
+
+MSCOCO_VAL_ANNOTATIONS_FILE: FilePath = (
+    MSCOCO_DATA_DIR / "annotations/captions_val2014.json"
+)
 MSCOCO_VAL_IMAGES_DIR: Dir = MSCOCO_DATA_DIR / "val2014"
 MSCOCO_VAL_IMAGES_URL: str = "http://images.cocodataset.org/zips/val2014.zip"
+
 MSCOCO_TEST_IMAGES_DIR: Dir = MSCOCO_DATA_DIR / "test2014"
 MSCOCO_TEST_IMAGES_URL: str = "http://images.cocodataset.org/zips/test2014.zip"
 
 # MSCOCO KARPATHY
 MSCOCO_KARPATHY: str = "mscoco-karpathy"
+
+# VIZWIZ
+VIZWIZ = "vizwiz"
+VIZWIZ_DATA_DIR: FilePath = get_captionwiz_dir() / VIZWIZ
+
+VIZWIZ_TEST_IMAGES_DIR: FilePath = VIZWIZ_DATA_DIR
+VIZWIZ_TEST_IMAGES_URL: FilePath = (
+    "https://ivc.ischool.utexas.edu/VizWiz_final/images/test.zip"
+)
+VIZWIZ_TEST_ANNOTATIONS_URL: str = (
+    "http://ivc.ischool.utexas.edu/VizWiz_final/caption/AoANet_VizWiz/data/test.json"
+)
+VIZWIZ_TEST_ANNOTATIONS_FILE: FilePath = VIZWIZ_DATA_DIR / "test.json"
+
+VIZWIZ_TRAIN_ANNOTATIONS_FILE: FilePath = VIZWIZ_DATA_DIR / "train.json"
+VIZWIZ_TRAIN_IMAGES_DIR: FilePath = VIZWIZ_DATA_DIR
+VIZWIZ_TRAIN_IMAGES_URL: FilePath = (
+    "https://ivc.ischool.utexas.edu/VizWiz_final/images/train.zip"
+)
+VIZWIZ_TRAIN_ANNOTATIONS_URL: str = (
+    "http://ivc.ischool.utexas.edu/VizWiz_final/caption/AoANet_VizWiz/data/train.json"
+)
+
+VIZWIZ_VAL_ANNOTATIONS_FILE: FilePath = VIZWIZ_DATA_DIR / "val.json"
+VIZWIZ_VAL_IMAGES_DIR: FilePath = VIZWIZ_DATA_DIR
+VIZWIZ_VAL_IMAGES_URL: str = (
+    "https://ivc.ischool.utexas.edu/VizWiz_final/images/val.zip"
+)
+VIZWIZ_VAL_ANNOTATIONS_URL: str = (
+    "http://ivc.ischool.utexas.edu/VizWiz_final/caption/AoANet_VizWiz/data/val.json"
+)
 
 # MODEL ##
 SHOW_ATT_TELL: str = "show_att_tell"

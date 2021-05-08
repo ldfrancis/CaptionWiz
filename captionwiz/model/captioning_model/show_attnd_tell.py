@@ -4,6 +4,7 @@ from captionwiz.model.mlp import MLPEncoder
 from captionwiz.model.rnn import RNNDecoder
 from captionwiz.utils.constants import SHOW_ATT_TELL
 from captionwiz.utils.tf_utils import replace_with_val_at_ind
+from captionwiz.utils.type import Tensor
 
 from .caption_model import CaptionModel
 
@@ -29,19 +30,9 @@ class ShowAttTell(CaptionModel):
         self.end_id = self.tokenizer.word_index["<end>"]
         self.max_length = max_length
 
-    def call(self, im_features, hidden, target=None, train=False):
+    def call(self, im_features) -> Tensor:
         """ """
-        assert (target is None) and (not train) or (not (target is None) and train)
-        im_embedding = self.encoder(im_features)
-        if train:
-            hidden = self.decoder.reset_states(target.shape[0])
-            input_ = tf.expand_dims(
-                [self.tokenizer.word_index["<start>"]] * target.shape[0], 1
-            )
-            for i in range(1, target.shape[1]):
-                pred, hidden, _ = self.decoder(input_, im_embedding, hidden)
-
-            self.decoder()
+        return self.infer(im_features)
 
     @tf.function
     def train_step(self, im_features, target):
@@ -53,7 +44,7 @@ class ShowAttTell(CaptionModel):
 
         with tf.GradientTape() as tape:
             im_embedding = self.encoder(im_features)
-            for i in range(1, time_steps):
+            for i in tf.range(1, time_steps):
                 pred, hidden, _ = self.decoder(input_, im_embedding, hidden)
                 loss += self.loss(target[:, i], pred)
                 input_ = tf.expand_dims(target[:, i], 1)
@@ -74,7 +65,7 @@ class ShowAttTell(CaptionModel):
         im_embedding = self.encoder(im_features)
         loss = 0
 
-        for i in range(1, self.max_length):
+        for i in tf.range(1, self.max_length):
             pred, hidden, att_weights = self.decoder(input_, im_embedding, hidden)
             pred_id = tf.random.categorical(pred, 1)
             loss += self.loss(target[:, i], pred)
@@ -95,7 +86,7 @@ class ShowAttTell(CaptionModel):
             tf.zeros((im_features.shape[0], self.max_length), dtype=tf.int64)
         )
 
-        for i in range(1, self.max_length):
+        for i in tf.range(1, self.max_length):
             pred, hidden, att_weights = self.decoder(input_, im_embedding, hidden)
             pred_id = tf.random.categorical(pred, 1)
             input_ = pred_id

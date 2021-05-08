@@ -13,7 +13,7 @@ from captionwiz.utils.type import FilePath
 class CaptionDS:
     """A dataset for image captioning
 
-    Attribuites:
+    Attributes:
     + train_im_to_caption: A dictionary that maps images to captions
     + train_image_caption_pairs: a list of image-caption pairs
     + val_im_to_caption: A dictionary that maps images to captions
@@ -40,6 +40,10 @@ class CaptionDS:
     @abstractmethod
     def create_image_caption_pairs(self):
         """Method must set the im_to_caption and image_caption_pairs attributes"""
+
+    @abstractmethod
+    def analyze(self, word_count_thresh):
+        """Analyze the dataset; obtaining the word count, top words, etc"""
 
     def preprocess(self):
 

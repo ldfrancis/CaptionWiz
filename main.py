@@ -7,7 +7,6 @@ from captionwiz.model import model_class
 from captionwiz.training import Trainer
 from captionwiz.training.loss import caption_xe_loss
 from captionwiz.training.optim import get_optim
-from captionwiz.training.schedule import CaptionLrSchedule
 from captionwiz.utils.config_utils import load_yaml, setup_wandb
 from captionwiz.utils.constants import BASE_DIR
 from captionwiz.utils.log_utils import logger, test_log_dir, train_log_dir
@@ -283,6 +282,14 @@ def main(
     # get model, dataset, and trainer ready
     logger.info("Creating model, dataset, and trainer")
     _dataset = dataset_class[dataset](cfg)
+
+    # analyze data:
+    if cfg["analyze_data"]:
+        """Analyze the train split"""
+        logger.info(f"Analyzing the train split of dataset {dataset}")
+        _dataset.analyze(word_count_threshold)
+        return
+
     caption_model_cfg = {
         "embedding_dim": embedding_dim,
         "units": units,
@@ -292,18 +299,12 @@ def main(
     }
 
     _caption_model = model_class[caption_model](**caption_model_cfg)
-    _learning_rate = CaptionLrSchedule(
-        _caption_model, lr_decay, learning_rate, lr_patience
-    )
-    _optimizer = get_optim(optimizer, _learning_rate)
+    # _learning_rate = CaptionLrSchedule(
+    #     _caption_model, lr_decay, learning_rate, lr_patience
+    # )
+    _optimizer = get_optim(optimizer, learning_rate)
 
     trainer = Trainer(_caption_model, _dataset, _optimizer, caption_xe_loss, cfg)
-
-    # analyze data:
-    if cfg["analyze_data"]:
-        """Analyze the train split"""
-        logger.info(f"Analyzing the train split of dataset {dataset}")
-        _dataset.analyze(word_count_threshold)
 
     # train:
     if cfg["train"]:
@@ -321,5 +322,4 @@ def main(
     if cfg["test"]:
         """Inference on the test split using the caption model"""
         logger.info("Test")
-        captions, texts = trainer.test()
-        print(texts[:20])
+        trainer.test()

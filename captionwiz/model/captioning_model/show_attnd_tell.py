@@ -1,3 +1,5 @@
+from typing import Tuple
+
 import tensorflow as tf
 
 from captionwiz.model.mlp import MLPEncoder
@@ -35,21 +37,21 @@ class ShowAttTell(CaptionModel):
         return self.infer(im_features)
 
     @tf.function
-    def train_step(self, im_features, target):
-        time_steps = target.shape[1]
-        batch_size = target.shape[0]
-        hidden = self.decoder.reset_states(batch_size)
-        input_ = tf.expand_dims([self.tokenizer.word_index["<start>"]] * batch_size, 1)
-        loss = 0
+    def train_step(self, im_features: Tensor, target: Tensor) -> Tuple[Tensor, Tensor]:
+        hidden = self.decoder.reset_states(target.shape[0])
+        input_ = tf.expand_dims(
+            [self.tokenizer.word_index["<start>"]] * target.shape[0], 1
+        )
+        loss = 0.0
 
         with tf.GradientTape() as tape:
             im_embedding = self.encoder(im_features)
-            for i in tf.range(1, time_steps):
+            for i in tf.range(1, target.shape[1]):
                 pred, hidden, _ = self.decoder(input_, im_embedding, hidden)
                 loss += self.loss(target[:, i], pred)
                 input_ = tf.expand_dims(target[:, i], 1)
 
-        loss_per_step = loss / time_steps
+        loss_per_step = loss / target.shape[1]
         vars_ = self.trainable_variables
         grads = tape.gradient(loss, vars_)
         self.optimizer.apply_gradients(zip(grads, vars_))
@@ -63,15 +65,13 @@ class ShowAttTell(CaptionModel):
             [self.tokenizer.word_index["<start>"]] * target.shape[0], 1
         )
         im_embedding = self.encoder(im_features)
-        loss = 0
+        loss = 0.0
 
         for i in tf.range(1, self.max_length):
             pred, hidden, att_weights = self.decoder(input_, im_embedding, hidden)
             pred_id = tf.random.categorical(pred, 1)
             loss += self.loss(target[:, i], pred)
-            input_ = pred_id
-
-        self.eval_loss.assign(loss)
+            input_ = tf.cast(pred_id, tf.int32)
 
         return loss, loss / target.shape[1]
 
@@ -86,11 +86,12 @@ class ShowAttTell(CaptionModel):
             tf.zeros((im_features.shape[0], self.max_length), dtype=tf.int64)
         )
 
-        for i in tf.range(1, self.max_length):
+        for i in tf.range(self.max_length):
             pred, hidden, att_weights = self.decoder(input_, im_embedding, hidden)
             pred_id = tf.random.categorical(pred, 1)
             input_ = pred_id
-            predicted = replace_with_val_at_ind(predicted, i - 1, pred_id)
+            predicted = replace_with_val_at_ind(predicted, i, pred_id)
+            input_ = tf.cast(pred_id, tf.int32)
 
         predicted = tf.transpose(predicted)
 

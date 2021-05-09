@@ -13,4 +13,4 @@ def get_inceptionV3():
         feat = tf.squeeze(feat)
         return (feat,)
 
-    return _extractor
+    return _extractor  # tf.function(_extractor)

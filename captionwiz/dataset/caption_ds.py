@@ -21,12 +21,13 @@ class CaptionDS:
     + test_images: a list of images (paths)
     """
 
-    def __init__(self, name, top_k_words=None) -> None:
+    def __init__(self, name, cfg={}) -> None:
         """Initialize the attributes and call abstract method that sets im_to_caption
         and image_caption_pairs
         """
         self.name = name
-        self.top_k_words = top_k_words
+        self.top_k_words = cfg["top_k_words"]
+        self._cfg = cfg
         self.train_im_to_caption: Dict[Any, List[str]] = collections.defaultdict(list)
         self.val_im_to_caption: Dict[Any, List[str]] = collections.defaultdict(list)
         self.train_image_caption_pairs: List[Tuple[FilePath, str]] = []

@@ -12,6 +12,8 @@ from captionwiz.utils.constants import (
     INCEPTIONV3,
     MSCOCO,
     MSCOCO_FEATURES_DIR,
+    VIZWIZ,
+    VIZWIZ_FEATURES_DIR,
 )
 from captionwiz.utils.data_utils import dataloader_from_img_paths
 from captionwiz.utils.log_utils import logger
@@ -88,16 +90,13 @@ class FeatureExtractor:
         self._features_dir.mkdir(parents=True, exist_ok=True)
 
         def _obtain_feats_pth(p):
-            filepath = p  # p.numpy().decode("utf-8")
+            filepath = p.numpy().decode("utf-8")
             filename = Path(filepath).name
             features_filepath = self._features_dir / f"{filename}.npz"
 
             self.im_to_features[filepath] = str(features_filepath.absolute())
 
             return features_filepath
-
-        [_obtain_feats_pth(p) for p in img_paths]
-        return
 
         for im, im_pth in tqdm(ds):
             feat_pths = [_obtain_feats_pth(p) for p in im_pth]
@@ -202,4 +201,5 @@ _extractors_features = {
 
 _captionds_features_dir = {
     MSCOCO: MSCOCO_FEATURES_DIR,
+    VIZWIZ: VIZWIZ_FEATURES_DIR,
 }

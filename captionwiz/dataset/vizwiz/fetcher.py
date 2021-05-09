@@ -6,6 +6,7 @@ from tensorflow.keras.utils import get_file
 
 from captionwiz.utils.constants import (
     VIZWIZ_DATA_DIR,
+    VIZWIZ_TEST_ANNOTATIONS_FILE,
     VIZWIZ_TEST_ANNOTATIONS_URL,
     VIZWIZ_TEST_IMAGES_DIR,
     VIZWIZ_TEST_IMAGES_URL,
@@ -23,16 +24,17 @@ from captionwiz.utils.type import Dir
 
 def obtain_annotations(split="train") -> Dict[str, Any]:
     """Obtain the annotations file for vizwiz train and val splits"""
-    assert split in ["train", "val"], "split can either be train or val"
+    assert split in ["train", "val", "test"], "split can either be train, val or test"
     annotations_file = {
         "train": VIZWIZ_TRAIN_ANNOTATIONS_FILE,
         "val": VIZWIZ_VAL_ANNOTATIONS_FILE,
+        "test": VIZWIZ_TEST_ANNOTATIONS_FILE,
     }[split]
     if annotations_file.exists():
         annotations = json.load(open(annotations_file, "r"))
     else:
         # download annotations file
-        download_annotations_file()
+        download_annotations_file(split)
         annotations = json.load(open(annotations_file, "r"))
 
     return annotations

@@ -3,6 +3,7 @@ from time import time
 from typing import Dict, List
 
 import numpy as np
+import pandas as pd
 import tensorflow as tf
 from tensorflow.keras.optimizers import Optimizer
 from tqdm import tqdm
@@ -10,8 +11,7 @@ from tqdm import tqdm
 from captionwiz.dataset import CaptionDS
 from captionwiz.model import CaptionModel
 from captionwiz.model.extractor import FeatureExtractor
-from captionwiz.utils.config_utils import get_datetime
-from captionwiz.utils.constants import CHECKPOINT_DIR, LOG_DIR
+from captionwiz.utils.constants import CHECKPOINT_DIR, DTIME, LOG_DIR
 from captionwiz.utils.log_utils import (
     formatter,
     logger,
@@ -112,8 +112,7 @@ class Trainer:
 
     def create_logger(self):
         """Create logger for longing train info"""
-        dtime = get_datetime()
-        self.log_file = LOG_DIR / f"{self.name}_{dtime}.log"
+        self.log_file = LOG_DIR / f"{self.name}_{DTIME}.log"
 
         log_level = self._cfg["trainer_loglevel"]
 
@@ -149,11 +148,10 @@ class Trainer:
     def eval(self, epoch, log=False):
         start_time = time()
         epoch_losses = []
-        for batch, (img_features, target) in enumerate(self._eval_dataloader):
+        for batch, (img_features, target) in enumerate(tqdm(self._eval_dataloader)):
             # trace the eval_step func
             batch_loss = self.eval_step(img_features, target, batch, epoch)
             epoch_losses += [batch_loss.numpy()]
-            self.current_step.assign_add(1)
 
         eval_losses = self.summarise_metric("eval_loss", epoch_losses)
         eval_time = time() - start_time
@@ -174,7 +172,7 @@ class Trainer:
                     eval_losses["eval_loss_mean"],
                     step=self.current_step.numpy(),
                 )
-
+        self._caption_model.eval_loss.assign(eval_losses["eval_loss_mean"])
         return eval_losses, eval_time
 
     def eval_step(
@@ -184,7 +182,9 @@ class Trainer:
             tf.summary.trace_on(graph=True, profiler=True)
             batch_loss, _ = self._caption_model.eval_step(img_features, target)
             with self.test_summary_writer.as_default():
-                tf.summary.trace_export(name="eval_step_trace", step=epoch)
+                tf.summary.trace_export(
+                    name="eval_step_trace", step=self.current_step.numpy()
+                )
         else:
             batch_loss, _ = self._caption_model.eval_step(img_features, target)
 
@@ -208,7 +208,7 @@ class Trainer:
     def train_one_epoch(self, epoch):
         start_time = time()
         epoch_losses = []
-        for batch, (img_features, target) in enumerate(self._train_dataloader):
+        for batch, (img_features, target) in enumerate(tqdm(self._train_dataloader)):
             # trace the train_step func
             batch_loss = self.train_step(img_features, target, batch, epoch)
             epoch_losses += [batch_loss.numpy()]
@@ -219,7 +219,7 @@ class Trainer:
                 )
                 tf.summary.scalar(
                     "learning_rate",
-                    self._optimizer.learning_rate._lr,
+                    self._optimizer.learning_rate,
                     step=self.current_step.numpy(),
                 )
 
@@ -247,8 +247,9 @@ class Trainer:
             self.logger.info(f"EPOCH {epoch+1}")
             train_losses, epoch_train_time = self.train_one_epoch(epoch)
             eval_losses, eval_time = self.eval(epoch)
+
             self.logger.info(
-                f"Epoch {epoch}:- \n"
+                f"Epoch {self.current_epoch.numpy()}:- \n"
                 f"\tepoch train time: {epoch_train_time}\n"
                 f"\ttrain_loss_mean: {train_losses['train_loss_mean']}\n"
                 f"\ttrain_loss_max: {train_losses['train_loss_max']}\n"
@@ -266,6 +267,9 @@ class Trainer:
                     f"Saving checkpoint with loss "
                     f"{eval_losses['eval_loss_mean']:1.2f} at {save_path}"
                 )
+            else:
+                lr = self._caption_model.optimizer.learning_rate
+                self._caption_model.optimizer.learning_rate.assign(0.999 * lr)
 
             with self.train_summary_writer.as_default():
                 for k, v in train_losses.items():
@@ -274,8 +278,6 @@ class Trainer:
             with self.test_summary_writer.as_default():
                 for k, v in eval_losses.items():
                     tf.summary.scalar(k, v, step=self.current_step.numpy())
-
-            self.ckpt.step.assign_add(1)
 
     def test(self):
         if self.ckpt_manager.latest_checkpoint and not self._cfg["train"]:
@@ -295,7 +297,8 @@ class Trainer:
             captions += [captions_.numpy()]
             imgs += [img_features.numpy()]
 
-        imgs = np.concatenate(imgs, axis=0)
         captions = np.concatenate(captions, axis=0)
         texts = self._dataset.tokenizer.sequences_to_texts(captions)
-        return captions, texts
+        result = pd.DataFrame({"img": self._dataset.test_images, "cap": texts})
+        result.to_csv(LOG_DIR / f"{self.name}_{DTIME}_test_result.csv", index=False)
+        return result

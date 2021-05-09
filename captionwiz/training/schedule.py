@@ -9,7 +9,7 @@ class CaptionLrSchedule(LearningRateSchedule):
         self._patience = tf.Variable(0, name="patience", dtype=tf.int32)
         self._max_patience = tf.cast(patience, name="max_patience", dtype=tf.int32)
         self._lr = tf.Variable(lr, name="_lr", dtype=tf.float32)
-        self.prev_loss = tf.Variable(0, name="prev_loss", dtype=tf.float32)
+        self.prev_loss = tf.Variable(1e20, name="prev_loss", dtype=tf.float32)
 
     def __call__(self, step):
         metric = self._model.eval_loss
@@ -31,6 +31,8 @@ class CaptionLrSchedule(LearningRateSchedule):
 
         tf.cond(tf.greater(metric, self.prev_loss), _should_decay_lr, x_fn)
 
-        self.prev_loss.assign(metric)
+        self.prev_loss.assign(tf.minimum(metric, self.prev_loss))
+
+        # tf.print(self.prev_loss, metric, self._lr)
 
         return self._lr

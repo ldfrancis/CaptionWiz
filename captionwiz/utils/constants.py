@@ -36,6 +36,9 @@ MSCOCO_VAL_IMAGES_URL: str = "http://images.cocodataset.org/zips/val2014.zip"
 MSCOCO_TEST_IMAGES_DIR: Dir = MSCOCO_DATA_DIR / "test2014"
 MSCOCO_TEST_IMAGES_URL: str = "http://images.cocodataset.org/zips/test2014.zip"
 
+MSCOCO_FEATURES_DIR = MSCOCO_DATA_DIR / "features"
+
+
 # MSCOCO KARPATHY
 MSCOCO_KARPATHY: str = "mscoco-karpathy"
 
@@ -43,7 +46,7 @@ MSCOCO_KARPATHY: str = "mscoco-karpathy"
 VIZWIZ = "vizwiz"
 VIZWIZ_DATA_DIR: FilePath = get_captionwiz_dir() / VIZWIZ
 
-VIZWIZ_TEST_IMAGES_DIR: FilePath = VIZWIZ_DATA_DIR
+VIZWIZ_TEST_IMAGES_DIR: FilePath = VIZWIZ_DATA_DIR / "test"
 VIZWIZ_TEST_IMAGES_URL: FilePath = (
     "https://ivc.ischool.utexas.edu/VizWiz_final/images/test.zip"
 )
@@ -53,7 +56,7 @@ VIZWIZ_TEST_ANNOTATIONS_URL: str = (
 VIZWIZ_TEST_ANNOTATIONS_FILE: FilePath = VIZWIZ_DATA_DIR / "test.json"
 
 VIZWIZ_TRAIN_ANNOTATIONS_FILE: FilePath = VIZWIZ_DATA_DIR / "train.json"
-VIZWIZ_TRAIN_IMAGES_DIR: FilePath = VIZWIZ_DATA_DIR
+VIZWIZ_TRAIN_IMAGES_DIR: FilePath = VIZWIZ_DATA_DIR / "train"
 VIZWIZ_TRAIN_IMAGES_URL: FilePath = (
     "https://ivc.ischool.utexas.edu/VizWiz_final/images/train.zip"
 )
@@ -62,13 +65,16 @@ VIZWIZ_TRAIN_ANNOTATIONS_URL: str = (
 )
 
 VIZWIZ_VAL_ANNOTATIONS_FILE: FilePath = VIZWIZ_DATA_DIR / "val.json"
-VIZWIZ_VAL_IMAGES_DIR: FilePath = VIZWIZ_DATA_DIR
+VIZWIZ_VAL_IMAGES_DIR: FilePath = VIZWIZ_DATA_DIR / "val"
 VIZWIZ_VAL_IMAGES_URL: str = (
     "https://ivc.ischool.utexas.edu/VizWiz_final/images/val.zip"
 )
 VIZWIZ_VAL_ANNOTATIONS_URL: str = (
     "http://ivc.ischool.utexas.edu/VizWiz_final/caption/AoANet_VizWiz/data/val.json"
 )
+
+VIZWIZ_FEATURES_DIR = VIZWIZ_DATA_DIR / "features"
+VIZWIZ_CAPTION_PAIR_DIR = VIZWIZ_DATA_DIR / "image_caption_pairs"
 
 # MODEL ##
 SHOW_ATT_TELL: str = "show_att_tell"
@@ -86,9 +92,6 @@ IMAGE_LOADERS = {INCEPTIONV3: partial(load_image, im_size=INCEPTIONV3_IMSIZE)}
 
 # OPTIMISER ##
 ADAM = "adam"
-
-# mscoco
-MSCOCO_FEATURES_DIR = MSCOCO_DATA_DIR / "features"
 
 # TRAINER ##
 CHECKPOINT_DIR = get_captionwiz_dir() / "checkpoints"

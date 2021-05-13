@@ -1,3 +1,4 @@
+import json
 import logging
 from time import time
 from typing import Dict, List
@@ -11,6 +12,7 @@ from tqdm import tqdm
 from captionwiz.dataset import CaptionDS
 from captionwiz.model import CaptionModel
 from captionwiz.model.extractor import FeatureExtractor
+from captionwiz.utils.caption_utils import post_process
 from captionwiz.utils.constants import CHECKPOINT_DIR, DTIME, LOG_DIR
 from captionwiz.utils.log_utils import (
     formatter,
@@ -22,7 +24,11 @@ from captionwiz.utils.type import ImageFeatures, Loss, Tensor
 
 
 class Trainer:
-    """Trains a caption model given a dataset, and an optimizer and loss"""
+    """Trains a caption model given a dataset, and an optimizer and loss
+
+    Attributes:
+
+    """
 
     def __init__(
         self,
@@ -318,9 +324,19 @@ class Trainer:
         result = pd.DataFrame(
             {
                 "img": self._dataset.test_images,
-                "cap": texts,
+                "cap": list(map(post_process, texts)),
                 "ids": self._dataset.test_images_ids,
             }
         )
         result.to_csv(LOG_DIR / f"{self.name}_{DTIME}_test_result.csv", index=False)
+
+        # create json file
+        result_lst = [
+            {"image_id": imid, "caption": cptn}
+            for imid, cptn in zip(result.ids, result.cap)
+        ]
+        # vizwiz_result = {"results":result_lst}
+        with open(LOG_DIR / f"{self.name}_{DTIME}_test_result.json", "w") as fout:
+            json.dump(result_lst, fout)
+
         return result

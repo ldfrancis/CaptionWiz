@@ -91,7 +91,7 @@ class VIZWIZ_CaptionDS(CaptionDS):
             return None
 
         logger.info(f"Starting to create image-caption pairs for dataset {self.name}")
-        for split in ["train", "val"]:
+        for split in ["train", "val", "test"]:
             csv_file = VIZWIZ_CAPTION_PAIR_DIR / f"{split}.csv"
             if csv_file.exists():
                 continue
@@ -100,7 +100,11 @@ class VIZWIZ_CaptionDS(CaptionDS):
             images = annotations["images"]
             image_caption_pairs: List[Tuple[str, str]] = []
             for ann in tqdm(annotations["annotations"]):
-                caption = f"<start> {ann['caption']} <end>"
+                caption = (
+                    f"<start> {ann['caption']} <end>"
+                    if not split == "test"
+                    else ann["image_id"]
+                )
                 image_path = (
                     str(image_dir.absolute())
                     + f'/{_img_id_to_filename(images, ann["image_id"])}'
@@ -112,12 +116,14 @@ class VIZWIZ_CaptionDS(CaptionDS):
                     "cap": [cap for _, cap in image_caption_pairs],
                 }
             )
+            VIZWIZ_CAPTION_PAIR_DIR.mkdir(parents=True, exist_ok=True)
             df.to_csv(VIZWIZ_CAPTION_PAIR_DIR / f"{split}.csv", index=False)
 
             logger.info(f"Done creating {split} image-caption pairs")
 
         train_image_caption = pd.read_csv(VIZWIZ_CAPTION_PAIR_DIR / "train.csv")
         val_image_caption = pd.read_csv(VIZWIZ_CAPTION_PAIR_DIR / "val.csv")
+        test_image_caption = pd.read_csv(VIZWIZ_CAPTION_PAIR_DIR / "test.csv")
         self.train_image_caption_pairs = [
             (im, cap)
             for im, cap in zip(train_image_caption["img"], train_image_caption["cap"])
@@ -126,8 +132,13 @@ class VIZWIZ_CaptionDS(CaptionDS):
             (im, cap)
             for im, cap in zip(val_image_caption["img"], val_image_caption["cap"])
         ]
+        self.test_image_caption_pairs = [
+            (im, cap)
+            for im, cap in zip(test_image_caption["img"], test_image_caption["cap"])
+        ]
 
         # test split
-        self._test_image_dir = obtain_images("test")
-        self.test_images = [str(f.absolute()) for f in self._test_image_dir.iterdir()]
+        self.test_images = [im for im, _ in self.test_image_caption_pairs]
+        self.test_images_ids = [imid for _, imid in self.test_image_caption_pairs]
+        # self.test_images = [str(f.absolute()) for f in self._test_image_dir.iterdir()]
         logger.info("Created test images")

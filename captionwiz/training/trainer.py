@@ -59,6 +59,8 @@ class Trainer:
         self.name = name or f"{caption_model.name}_{dataset.name}"
 
         self.best_loss = tf.Variable(np.inf, dtype=tf.float32)
+        self.patience = 0
+        self.max_patience = cfg["lr_patience"]
 
         self.create_checkpoint()
         self.create_logger()
@@ -269,11 +271,25 @@ class Trainer:
                 )
             else:
                 lr = self._caption_model.optimizer.learning_rate
-                self._caption_model.optimizer.learning_rate.assign(0.999 * lr)
+                self._caption_model.optimizer.learning_rate.assign(
+                    self._cfg["lr_decay"] * lr
+                )
+                self.best_loss.assign(eval_losses["eval_loss_mean"])
+
+            if tf.greater(
+                self._cfg["restart"], self._caption_model.optimizer.learning_rate
+            ):
+                self.logger.info(f"Restart after {self.current_epoch.numpy()} epochs")
+                self._caption_model.optimizer.learning_rate.assign(
+                    self._cfg["learning_rate"]
+                )
 
             with self.train_summary_writer.as_default():
                 for k, v in train_losses.items():
                     tf.summary.scalar(k, v, step=self.current_step.numpy())
+                tf.summary.scalar(
+                    "epoch", self.current_epoch.numpy(), step=self.current_step.numpy()
+                )
 
             with self.test_summary_writer.as_default():
                 for k, v in eval_losses.items():
@@ -299,6 +315,12 @@ class Trainer:
 
         captions = np.concatenate(captions, axis=0)
         texts = self._dataset.tokenizer.sequences_to_texts(captions)
-        result = pd.DataFrame({"img": self._dataset.test_images, "cap": texts})
+        result = pd.DataFrame(
+            {
+                "img": self._dataset.test_images,
+                "cap": texts,
+                "ids": self._dataset.test_images_ids,
+            }
+        )
         result.to_csv(LOG_DIR / f"{self.name}_{DTIME}_test_result.csv", index=False)
         return result

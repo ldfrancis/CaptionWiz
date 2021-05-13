@@ -69,7 +69,8 @@ class ShowAttTell(CaptionModel):
 
         for i in tf.range(1, self.max_length):
             pred, hidden, att_weights = self.decoder(input_, im_embedding, hidden)
-            pred_id = tf.random.categorical(pred, 1)
+            pred_id = tf.argmax(pred, axis=-1)
+            pred_id = tf.reshape(pred_id, (pred_id.shape[0], 1))
             loss += self.loss(target[:, i], pred)
             input_ = tf.cast(pred_id, tf.int32)
 
@@ -88,7 +89,8 @@ class ShowAttTell(CaptionModel):
 
         for i in tf.range(self.max_length):
             pred, hidden, att_weights = self.decoder(input_, im_embedding, hidden)
-            pred_id = tf.random.categorical(pred, 1)
+            pred_id = tf.argmax(pred, axis=-1)
+            pred_id = tf.reshape(pred_id, (pred_id.shape[0], 1))
             input_ = pred_id
             predicted = replace_with_val_at_ind(predicted, i, pred_id)
             input_ = tf.cast(pred_id, tf.int32)

@@ -268,6 +268,7 @@ def main(
     cfg["lr_decay"] = lr_decay
     cfg["lr_patience"] = lr_patience
     cfg["max_length"] = max_length
+    cfg["restart"] = float(cfg["restart"])
 
     pretty_cfg = yaml.dump(cfg, sort_keys=False, default_flow_style=False)
 
